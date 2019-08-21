@@ -1,0 +1,2 @@
+settings.png=com.apple.Preferences-large.png
+a1111.png=com.cloudflare.1111-large.png
