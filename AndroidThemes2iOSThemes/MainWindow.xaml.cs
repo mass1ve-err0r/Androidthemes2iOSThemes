@@ -1,6 +1,8 @@
 ﻿using System;
 using System.IO;
 using System.Collections.Generic;
+using System.Security;
+using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -26,16 +28,26 @@ namespace AndroidThemes2iOSThemes
     public partial class MainWindow : Window
     {
         // global inits
-        private System.Windows.Forms.FolderBrowserDialog folderDlg;
         public String t_path;
         public Boolean path_is_set = false;
         public Boolean dict_is_loaded = false;
         SortedDictionary<string, string> ios_dict = new SortedDictionary<string, string>();
-
         // stylization because why not
         public String type_info = "[INFO]: ";
         public String type_debug = "[DEBUG]: ";
         public String type_error = "[ERROR]: ";
+
+        // Newer logic
+        private System.Windows.Forms.OpenFileDialog fileopenerdialog;
+        public String path_file;
+        public String outdir = Directory.GetCurrentDirectory() + "\\_output\\";
+        public String inpdir = Directory.GetCurrentDirectory() + "\\_input";
+        public String info_dir = Directory.GetCurrentDirectory() + "\\_xresources";
+        public String iconsfolder = "\\res\\drawable-nodpi-v4";
+        public String extensionT = ".theme";
+        public Boolean props_set = false;
+        public Boolean file_chosen = false;
+        public String innerPath, rec_tname, rec_pkgname;
 
         // Le Window
         public MainWindow()
@@ -43,71 +55,140 @@ namespace AndroidThemes2iOSThemes
             InitializeComponent();
             // inits
             logform.IsReadOnly = true;
-            pickerx.Click += pickerx_action;
+            pickerx.Click += filepicker_action;
             pickerx.BorderThickness = new Thickness(1);
-            B1.Click += b1_action;
+            B1.Click += b1x_action; // alt action
             B1.BorderThickness = new Thickness(1);
             B2.Click += b2_action;
             B2.BorderThickness = new Thickness(1);
+            ios_props.Click += ios_props_action;
+            ios_props.BorderThickness = new Thickness(1);
         }
 
 
-        // LOGIC: FolderPicker
-        void pickerx_action (object sender, RoutedEventArgs e)
+        // LOGIC: ios_props hanlder
+        void ios_props_action(object sender, RoutedEventArgs e)
         {
-            // Assign the FolderDialog now
-            this.folderDlg = new System.Windows.Forms.FolderBrowserDialog();
-            folderDlg.ShowNewFolderButton = true;
-            // Show the FolderBrowserDialog.  
-            System.Windows.Forms.DialogResult result = folderDlg.ShowDialog();
-            if (result == System.Windows.Forms.DialogResult.OK)
+            // open new window to set props
+            Window1 props = new Window1();
+            props.ShowDialog();
+            // retrieve values from TextBoxes
+            // Package name
+            rec_pkgname = props.pname_tb.Text;
+            //debug-purposes: log_t(type_debug, rec_pkgname, 0);
+            // Theme name
+            rec_tname = props.thame_tb.Text;
+            //debug-purposes: log_t(type_debug, rec_tname, 0);
+
+            // set flag props have been set
+            props_set = true;
+        }
+
+        // LOGIC: new process handler
+        void b1x_action(object sender, RoutedEventArgs e)
+        {
+            // make sure we picked our file & set props
+            if (file_chosen && props_set)
             {
-                // set TextBox content to filepath
-                T2.Text = folderDlg.SelectedPath;
-                t_path = folderDlg.SelectedPath;
-                Environment.SpecialFolder root = folderDlg.RootFolder;
-                // set flag path has been set
-                path_is_set = true;
+                // launch prep
+                prepare_x();
             }
         }
 
-        // LOGIC: Grabbing FileNames, matching with dict & recusively renaming
-        void b1_action (object sender, RoutedEventArgs e)
+        // LOGIC: FilePicker
+        // need that regular obj sender shit due to button
+        void filepicker_action(object sender, RoutedEventArgs e)
         {
-            // check if any path is selected
-            if (path_is_set)
+            this.fileopenerdialog = new OpenFileDialog();
+            System.Windows.Forms.DialogResult result = fileopenerdialog.ShowDialog();
+            if (result == System.Windows.Forms.DialogResult.OK)
             {
-                // filter for pngs because thats how droids store
-                string[] files_arr = Directory.GetFiles(t_path, "*.png");
-                int files_count = files_arr.Length;
-                // check if path contains any images to work with
-                if (files_count > 0)
-                {
-                    if (dict_is_loaded)
-                    {
-                        // log because we can
-                        log_t(type_info, "Amount of files (With Alts): ", files_count);
-                        log_t(type_info, "Reading from dict & rebranding...", 0);
+                // save full filepath & show
+                var filePath = fileopenerdialog.FileName;
+                T2.Text = filePath;
+                path_file = filePath;
+                file_chosen = true;
+            }
+        }
 
-                        // invoke renamer with this shit lmao
-                        renamer_t(files_arr);
-                    }
-                    else
-                    {
-                        log_t(type_error, "No dictionary loaded! Please load dictionary first.", 0);
-                    }
+        // LOGIC: import APK, extract as ZIP and export the icons folder:
+        // <ZIP>\res\drawable-nodpi-v4
+        void prepare_x()
+        {
+            // straight extract to working dir _input
+            ZipFile.ExtractToDirectory(path_file, inpdir);
+            log_t(type_info, "Successfully extracted theme; Exporting...", 0);
+            // struct the outdir/ theme
+            innerPath = outdir + rec_tname + extensionT + "\\IconBundles";
+            //log_t(type_debug, innerPath, 0);
+            Directory.CreateDirectory(innerPath);
+            // copy icon_dir to outdir
+            DirectoryInfo dirInfo = new DirectoryInfo(innerPath);
+            if (dirInfo.Exists == false)
+            {
+                Directory.CreateDirectory(innerPath);
+            }
+            List<String> Iconz = Directory.GetFiles(inpdir + iconsfolder, "*.png", SearchOption.AllDirectories).ToList();
+            foreach (string file in Iconz)
+            {
+                FileInfo mFile = new FileInfo(file);
+                // to remove name collisions
+                if (new FileInfo(dirInfo + "\\" + mFile.Name).Exists == false)
+                {
+                    mFile.MoveTo(dirInfo + "\\" + mFile.Name);
+                }
+            }
+            log_t(type_info, "Successfully exported theme! Setting up final stuff...", 0);
+            filterX();
+        }
+
+
+        // LOGIC: search & rename
+        void filterX ()
+        {
+            // filter for pngs because thats how droids store
+            string[] files_arr = Directory.GetFiles(innerPath, "*.png");
+            int files_count = files_arr.Length;
+            // check if path contains any images to work with
+            if (files_count > 0)
+            {
+                if (dict_is_loaded)
+                {
+                    // log because we can
+                    log_t(type_info, "Amount of files (With Alts): ", files_count);
+                    log_t(type_info, "Reading from dict & rebranding...", 0);
+                    // invoke renamer with this shit lmao
+                    renamer_t(files_arr);
                 }
                 else
                 {
-                    log_t(type_error, "No pngs inside / Theme is empty!", 0);
+                    log_t(type_error, "No dictionary loaded! Please load dictionary first.", 0);
                 }
             }
             else
             {
-                log_t(type_error, "Error loading theme dir!", 0);
+                log_t(type_error, "No pngs inside / Theme is empty!", 0);
             }
-
         }
+
+        // LOGIC: kinda like sed-i
+        void injectInfo()
+        {
+            // copy Info to theme dir
+            string themedir = outdir + rec_tname + extensionT;
+            System.IO.File.Copy(info_dir + "\\Info.txt", themedir + "\\Info.txt", true);
+            // replace Package & Theme Name
+            string text = File.ReadAllText(themedir + "\\Info.txt");
+            text = text.Replace("$var_themename", rec_tname);
+            File.WriteAllText(themedir + "\\Info.txt", text);
+            // change extension
+            File.Move(themedir + "\\Info.txt", System.IO.Path.ChangeExtension(themedir + "\\Info.txt", ".plist"));
+            log_t(type_info, "All tasks done. Theme can now be exported!\nTheme is located in the _output folder!\n", 0);
+        }
+
+
+
+        // old edited code
 
         // LOGIC: Load/ Set a dictionary
         void b2_action(object sender, RoutedEventArgs e)
@@ -148,29 +229,32 @@ namespace AndroidThemes2iOSThemes
             foreach (string bundleID in input_arr)
             {
                 // trim the string to just the BundleID
-                string bid = bundleID.Replace(t_path + "\\", "");
+                string bid = bundleID.Replace(innerPath + "\\", "");
                 // debug
                 // log_t(type_debug, bid, 0);
                 if (ios_dict.TryGetValue(bid, out string keyval))
                 {
                     // rename & replace the files
-                    File.Move(t_path + "\\" + bid, t_path + "\\" + keyval);
+                    File.Move(innerPath + "\\" + bid, innerPath + "\\" + keyval);
                     // iterate the counter
                     counter--;
-                    if(counter == 0)
+                    if (counter == 0)
                     {
-                        log_t(type_info, "DONE", 0);
-                    }
-                    else
-                    {
-                        log_t(type_info, "Files left: ", counter);
+                        log_t(type_info, "DONE; Inserting customized Info.plist", 0);
+                        injectInfo();
                     }
                 }
                 else
                 {
-                    log_t(type_error, "Entry not found in Dict! Skipping icon...", 0);
+                    // also iterate in this case lmao
+                    counter--;
+                    if (counter == 0)
+                    {
+                        log_t(type_info, "DONE; Inserting customized Info.plist", 0);
+                        injectInfo();
+                    }
+                    //log_t(type_error, "Key-Value not found!", 0);
                 }
-
             }
         }
 

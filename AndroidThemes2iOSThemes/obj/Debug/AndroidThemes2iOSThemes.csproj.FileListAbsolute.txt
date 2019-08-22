@@ -44,3 +44,5 @@ C:\Projects\AndroidThemes2iOSThemes\AndroidThemes2iOSThemes\obj\Debug\AndroidThe
 C:\Projects\AndroidThemes2iOSThemes\AndroidThemes2iOSThemes\obj\Debug\AndroidThemes2iOSThemes.csproj.CopyComplete
 C:\Projects\AndroidThemes2iOSThemes\AndroidThemes2iOSThemes\obj\Debug\AndroidThemes2iOSThemes.exe
 C:\Projects\AndroidThemes2iOSThemes\AndroidThemes2iOSThemes\obj\Debug\AndroidThemes2iOSThemes.pdb
+C:\Projects\AndroidThemes2iOSThemes\AndroidThemes2iOSThemes\obj\Debug\Window1.g.cs
+C:\Projects\AndroidThemes2iOSThemes\AndroidThemes2iOSThemes\obj\Debug\Window1.baml
